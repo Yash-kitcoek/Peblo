@@ -1,0 +1,59 @@
+{
+  "sections": [
+    "featured",
+    "series",
+    "minisodes",
+    "songs"
+  ],
+  "categories": [
+    "adventure",
+    "folk",
+    "friendship",
+    "india",
+    "language",
+    "learning",
+    "maths",
+    "music",
+    "nature",
+    "reading",
+    "science",
+    "singalong",
+    "stories",
+    "travel",
+    "values"
+  ],
+  "languages": [
+    "en",
+    "hi"
+  ],
+  "artwork_specs": {
+    "poster": {
+      "aspect": "2:3",
+      "target_px": [
+        600,
+        900
+      ],
+      "max_kb": 200
+    },
+    "banner": {
+      "aspect": "16:9",
+      "target_px": [
+        1280,
+        720
+      ],
+      "max_kb": 200
+    },
+    "thumbnail": {
+      "aspect": "16:9",
+      "target_px": [
+        640,
+        360
+      ],
+      "max_kb": 200
+    }
+  },
+  "conventions": {
+    "season_zero": "Season 0 is reserved for trailers",
+    "content_group": "episodes sharing a content_group are language variants of the same episode and must collapse into ONE catalogue entry"
+  }
+}
