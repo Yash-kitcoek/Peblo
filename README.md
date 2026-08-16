@@ -168,3 +168,25 @@ reference.json       Product/reference data supplied with the project
 docker-compose.yml   Full local stack: Postgres, API, and web app
 .env.example         Environment-variable template
 ```
+
+## Engineering notes
+
+### Atomic publishing and viewer reads
+
+Publishing builds the full catalogue before it is exposed. `write_catalog()` writes JSON to a UUID-named temporary file in the storage directory, then replaces `catalogue.json` with `Path.replace()`. On the local/POSIX filesystem this rename is atomic: viewers receive either the previous complete catalogue or the new complete catalogue, never a partial JSON document. If the process stops before the replace, the live catalogue is unaffected; the temporary file is orphaned. Cleaning up such temporary files is a known gap.
+
+The viewer serves this pre-published file rather than querying the CMS database on each request. That isolates catalogue reads from database availability and load, gives every reader a consistent snapshot, and is easy to cache at a CDN. The trade-offs are deliberate staleness until the next publish, no per-request personalization, and a single file that will eventually become too large to load wholesale.
+
+### Search and storage
+
+Search reloads the published JSON and linearly scans its shows and grouped episodes for every request; the optional query, category, language, and section filters compose with AND logic. This is suitable for a few thousand records, but repeated parsing and O(n) scans become noticeable at tens of thousands of episodes or high concurrent traffic. The next step would be an in-memory catalogue cache plus a dedicated index such as PostgreSQL full-text search, Meilisearch, or Typesense.
+
+Storage is currently local, path-based file access in `api/app/main.py`; it is not yet a fully swappable storage class. Moving to Cloudflare R2 would mean introducing a small `Storage` interface (`read`, `write`, `exists`, `url`) and a local-disk implementation, then adding an R2/S3 implementation behind that interface. The public artwork URLs would become R2/CDN URLs while catalogue publishing would use an object upload/copy strategy that preserves atomic versioning.
+
+### Scope, operations, and delivery
+
+This submission intentionally leaves out show/episode creation and deletion in the CMS, Alembic migrations, per-episode artwork, a production authentication provider, and temporary-file cleanup. They were kept out to focus the exercise on reliable publishing, editable validation blockers, and the core viewer workflow. AI assistance was used to accelerate implementation and documentation; its suggestions were accepted only after checking them against the existing API, tests, and build output, and rejected when they conflicted with the supplied constraints.
+
+The primary operational alert would be **time since last successful publish** (and, secondarily, publish failure rate). A stale kids catalogue can look healthy at `/health` while quietly serving old content, so freshness is the more meaningful signal.
+
+Approximate effort: Part A — 2 hours; Part B — 2 hours; Part C — 1.5 hours; Part D — 1 hour; Part E — 1 hour. These estimates include implementation, manual validation, and documentation.

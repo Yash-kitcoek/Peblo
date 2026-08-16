@@ -96,7 +96,7 @@ def art_map(show: Show): return {a.kind: f"/storage/{a.path}" for a in show.artw
 
 def report(session: Session):
     issues = []
-    issues.extend({"type":"duplicate_variant", "message":issue.message} for issue in session.scalars(select(ImportIssue)).all())
+    issues.extend({"type":"duplicate_variant", "id":issue.id, "message":issue.message} for issue in session.scalars(select(ImportIssue)).all())
     published = session.scalars(select(Episode).where(Episode.status == "published")).all()
     by_group = defaultdict(list)
     for ep in published:
@@ -107,7 +107,7 @@ def report(session: Session):
         if missing: issues.append({"type":"artwork", "show":ep.show.title, "message":f"{ep.show.title} is missing {', '.join(sorted(missing))} artwork."})
         if not ep.show.section: issues.append({"type":"section", "show":ep.show.title, "message":f"{ep.show.title} needs a section before it can be published."})
     for (_, _), eps in by_group.items():
-        if len(eps) > 1: issues.append({"type":"duplicate_variant", "episode":eps[0].external_id, "message":f"{eps[0].content_group} has more than one {eps[0].language} variant. Keep one variant or change its language."})
+        if len(eps) > 1: issues.append({"type":"duplicate_variant", "id":None, "episode":eps[0].external_id, "message":f"{eps[0].content_group} has more than one {eps[0].language} variant. Keep one variant or change its language."})
     dedup = {i["message"]: i for i in issues}
     return {"blocked": bool(dedup), "issue_count":len(dedup), "issues":list(dedup.values())}
 
@@ -193,7 +193,7 @@ def list_shows(q: str="", section: str | None=None, status: str | None=None, lan
         if section and show.section != section: continue
         if status and show.status != status: continue
         if language and not any(e.language==language for e in eps): continue
-        data.append({"id":show.id,"title":show.title,"section":show.section,"status":show.status,"episodes":len(eps),"artwork":art_map(show)})
+        data.append({"id":show.id,"title":show.title,"section":show.section,"status":show.status,"episodes":len(eps),"episode_items":[{"id":ep.id,"title":ep.title,"duration_seconds":ep.duration_seconds,"language":ep.language,"content_group":ep.content_group,"season_number":ep.season_number,"episode_number":ep.episode_number,"status":ep.status} for ep in eps],"artwork":art_map(show)})
     return {"items":data[(page-1)*page_size:page*page_size],"total":len(data),"page":page}
 
 @app.put("/admin/shows/{show_id}")
@@ -234,6 +234,13 @@ async def upload_artwork(show_id:int, kind:Literal["poster","banner","thumbnail"
 
 @app.get("/admin/validation-report")
 def validation(_:str=Depends(role), session:Session=Depends(db)): return report(session)
+
+@app.delete("/admin/import-issues/{issue_id}")
+def dismiss_import_issue(issue_id:int, _:str=Depends(role), session:Session=Depends(db)):
+    issue=session.get(ImportIssue, issue_id)
+    if not issue: raise HTTPException(404,"Import issue not found")
+    session.delete(issue); session.commit()
+    return {"id":issue_id,"outcome":"dismissed"}
 
 @app.get("/admin/publish-runs")
 def runs(_:str=Depends(role), session:Session=Depends(db)):
